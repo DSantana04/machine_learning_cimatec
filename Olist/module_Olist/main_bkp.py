@@ -3,7 +3,7 @@ from module_olist.features import create_features
 from loguru import logger
 
 def main():
-    logger.info("Iniciando preparação do dataset..."
+    logger.info("Iniciando preparação do dataset...")
     
     orders, items, customers = load_data(
         orders_path=RAW_DATA_DIR / "olist_orders_dataset.csv",
