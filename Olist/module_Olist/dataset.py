@@ -82,6 +82,8 @@ def create_target(orders: pd.DataFrame) -> pd.DataFrame:
         delivered_orders["is_late"].value_counts(dropna=False)
     )
 
+    return delivered_orders
+
 def aggregate_items(items: pd.DataFrame) -> pd.DataFrame:
     # A tabela de itens possui uma linha para cada item presente no pedido.
     # Portanto, um mesmo order_id pode aparecer várias vezes.
@@ -136,7 +138,7 @@ def create_dataset(orders, items, customers):
     )
 
     data = data.merge(
-        customers={["customer_id", "customer_city", "customer_state"]},
+        customers[["customer_id", "customer_city", "customer_state"]],
         on="customer_id",
         how="left",
         validate="many_to_one"

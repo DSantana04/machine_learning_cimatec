@@ -65,3 +65,5 @@ def create_features(data: pd.DataFrame) -> pd.DataFrame:
         data["promised_days"].le(0).sum()
     )
 
+    return data
+
