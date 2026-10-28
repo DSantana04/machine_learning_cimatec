@@ -1,73 +1,134 @@
-from loguru import logger
-from module_Olist.config import INTERIM_DATA_DIR, RAW_DATA_DIR
-from module_Olist.dataset import create_dataset, load_data, save_dataset
+from module_Olist.config import (
+    RAW_DATA_DIR,
+    INTERIM_DATA_DIR,
+    MODELS_DIR,
+)
+
+from module_Olist.dataset import (
+    load_data,
+    create_dataset,
+    save_dataset,
+)
+
 from module_Olist.features import create_features
 
-RAW_ORDERS_FILE = "olist_orders_dataset.csv"
-RAW_ITEMS_FILE = "olist_order_items_dataset.csv"
-RAW_CUSTOMERS_FILE = "olist_customers_dataset.csv"
-DEFAULT_OUTPUT_FILE = "olist_orders_interim.csv"
+from module_Olist.modeling.split import split_data
+
+from module_Olist.modeling.train import (
+    train_model,
+)
+
+from module_Olist.modeling.evaluate import (
+    evaluate_model,
+)
+
+from module_Olist.modeling.cross_validation import (
+    cross_validate_models,
+)
+
+from loguru import logger
 
 
-def _build_paths(output_filename: str) -> tuple:
-    """Monta os caminhos de entrada e saída do pipeline."""
-    orders_path = RAW_DATA_DIR / RAW_ORDERS_FILE
-    items_path = RAW_DATA_DIR / RAW_ITEMS_FILE
-    customers_path = RAW_DATA_DIR / RAW_CUSTOMERS_FILE
-    output_path = INTERIM_DATA_DIR / output_filename
-    return orders_path, items_path, customers_path, output_path
+def main():
 
+    logger.info(
+        "Iniciando preparação do dataset..."
+    )
 
-def _validate_input_files(orders_path, items_path, customers_path) -> None:
-    """Valida se os arquivos de entrada existem antes de executar o pipeline."""
-    for path in (orders_path, items_path, customers_path):
-        if not path.exists():
-            raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+    orders, items, customers = load_data(
+        orders_path=(
+            RAW_DATA_DIR
+            / "olist_orders_dataset.csv"
+        ),
+        items_path=(
+            RAW_DATA_DIR
+            / "olist_order_items_dataset.csv"
+        ),
+        customers_path=(
+            RAW_DATA_DIR
+            / "olist_customers_dataset.csv"
+        ),
+    )
 
+    data = create_dataset(
+        orders,
+        items,
+        customers,
+    )
 
-def _log_pipeline_summary(dataset, output_path) -> None:
-    """Registra um resumo final para facilitar auditoria da execução."""
-    logger.info("Pipeline finalizada com sucesso.")
-    logger.info("Linhas geradas: {}", len(dataset))
-    logger.info("Colunas geradas: {}", len(dataset.columns))
-    logger.info("Arquivo final: {}", output_path)
+    data = create_features(data)
 
+    save_dataset(
+        data,
+        INTERIM_DATA_DIR
+        / "orders_dataset_refined.csv",
+    )
 
-def run_pipeline(output_filename: str = DEFAULT_OUTPUT_FILE) -> None:
-    """Executa o fluxo completo: carregar -> integrar -> criar features -> salvar."""
-    logger.info("Iniciando pipeline de dados...")
-    orders_path, items_path, customers_path, output_path = _build_paths(output_filename)
+    # =============================================
+    # TRAIN / TEST
+    # =============================================
 
-    logger.info("Entrada orders: {}", orders_path)
-    logger.info("Entrada items: {}", items_path)
-    logger.info("Entrada customers: {}", customers_path)
-    logger.info("Saída interim: {}", output_path)
+    X_train, X_test, y_train, y_test = (
+        split_data(data)
+    )
 
-    _validate_input_files(orders_path, items_path, customers_path)
+    # =============================================
+    # CROSS VALIDATION
+    # Seleciona modelo + threshold
+    # =============================================
 
-    orders, items, customers = load_data(orders_path, items_path, customers_path)
-    logger.info("Dados carregados. Iniciando integração...")
+    (
+        best_model_name,
+        best_threshold,
+    ) = cross_validate_models(
+        X_train,
+        y_train,
+    )
 
-    dataset = create_dataset(orders, items, customers)
-    logger.info("Integração concluída. Iniciando criação de features...")
+    logger.info(
+        f"Modelo escolhido: "
+        f"{best_model_name}"
+    )
 
-    dataset = create_features(dataset)
-    logger.info("Features criadas. Salvando dataset final...")
+    logger.info(
+        f"Threshold escolhido: "
+        f"{best_threshold:.2f}"
+    )
 
-    save_dataset(dataset, output_path)
-    _log_pipeline_summary(dataset, output_path)
+    # =============================================
+    # TREINAMENTO FINAL
+    # =============================================
 
+    model = train_model(
+        model_name=best_model_name,
+        threshold=best_threshold,
+        X_train=X_train,
+        y_train=y_train,
+        model_path=(
+            MODELS_DIR
+            / "best_model.joblib"
+        ),
+        metadata_path=(
+            MODELS_DIR
+            / "metadata.json"
+        ),
+    )
 
-def main() -> None:
-    """Ponto de entrada da aplicação."""
-    try:
-        run_pipeline()
-    except Exception:
-        logger.exception("Falha na execução do pipeline.")
-        raise
+    # =============================================
+    # TESTE FINAL
+    # =============================================
 
+    evaluate_model(
+        model=model,
+        model_name=best_model_name,
+        X_test=X_test,
+        y_test=y_test,
+        threshold=best_threshold,
+    )
 
-
+    logger.success(
+        "Pipeline executado com sucesso."
+    )
 
 
 if __name__ == "__main__":
