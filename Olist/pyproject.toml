@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "fg-data-profiling>=4.19.1",
+    "keras>=3.0.0",
     "ipython",
     "ipywidgets>=8.1.8",
     "joblib",
@@ -38,6 +39,7 @@ dependencies = [
     "setuptools==81.0.0",
     "shap>=0.52.0",
     "tqdm",
+    "tensorflow>=2.15.0",
     "typer",
     "xgboost>=3.4.1",
     "ydata-profiling>=4.18.4",
@@ -56,4 +58,3 @@ extend-select = ["I"]  # Add import sorting
 [tool.ruff.lint.isort]
 known-first-party = ["module_Olist"]
 force-sort-within-sections = true
-
