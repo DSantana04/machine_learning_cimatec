@@ -1,30 +1,117 @@
-from pathlib import Path
+# module_olist/modeling/train.py
+
+import json
+import joblib
 
 from loguru import logger
-from tqdm import tqdm
-import typer
 
-from module_Olist.config import MODELS_DIR, PROCESSED_DATA_DIR
+from module_Olist.modeling.pipeline import (
+    create_gradient_boosting_pipeline,
+    create_xgboost_pipeline,
+    create_lightgbm_pipeline,
+)
 
-app = typer.Typer()
 
-
-@app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    features_path: Path = PROCESSED_DATA_DIR / "features.csv",
-    labels_path: Path = PROCESSED_DATA_DIR / "labels.csv",
-    model_path: Path = MODELS_DIR / "model.pkl",
-    # -----------------------------------------
+def create_selected_model(
+    model_name,
 ):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Training some model...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Modeling training complete.")
-    # -----------------------------------------
+    """
+    Cria o pipeline correspondente
+    ao modelo selecionado.
+    """
+
+    pipelines = {
+        "Gradient Boosting": create_gradient_boosting_pipeline,
+        "XGBoost": create_xgboost_pipeline,
+        "LightGBM": create_lightgbm_pipeline,
+    }
+
+    if model_name not in pipelines:
+        raise ValueError(
+            f"Modelo desconhecido: {model_name}"
+        )
+
+    return pipelines[model_name]()
 
 
-if __name__ == "__main__":
-    app()
+def train_model(
+    model_name,
+    threshold,
+    X_train,
+    y_train,
+    model_path,
+    metadata_path,
+):
+    """
+    Treina o modelo selecionado utilizando
+    todo o conjunto de treinamento
+    e salva modelo e metadados.
+    """
+
+    logger.info(
+        f"Treinando modelo final: {model_name}"
+    )
+
+    # -------------------------------------------------
+    # Cria somente o modelo vencedor
+    # -------------------------------------------------
+
+    model = create_selected_model(
+        model_name
+    )
+
+    # -------------------------------------------------
+    # Treina com TODO o conjunto de treino
+    # -------------------------------------------------
+
+    model.fit(
+        X_train,
+        y_train,
+    )
+
+    # -------------------------------------------------
+    # Salva pipeline completo
+    # -------------------------------------------------
+
+    model_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    joblib.dump(
+        model,
+        model_path,
+    )
+
+    logger.success(
+        f"Modelo salvo em: {model_path}"
+    )
+
+    # -------------------------------------------------
+    # Salva metadados
+    # -------------------------------------------------
+
+    metadata = {
+        "model_name": model_name,
+        "threshold": float(threshold),
+        "selection_metric": "pr_auc",
+        "threshold_metric": "f1",
+    }
+
+    with open(
+        metadata_path,
+        "w",
+        encoding="utf-8",
+    ) as file:
+
+        json.dump(
+            metadata,
+            file,
+            indent=4,
+        )
+
+    logger.success(
+        f"Metadados salvos em: {metadata_path}"
+    )
+
+    return model
